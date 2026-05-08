@@ -64,11 +64,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		// }
 		leftover = dataToParse[consumed:]
 	}
-	fmt.Printf("Parsed Request: %s %s %s\n",
-		r.RequestLine.Method,
-		r.RequestLine.RequestTarget,
-		r.RequestLine.HttpVersion,
-	)
+
 	return r, nil
 }
 

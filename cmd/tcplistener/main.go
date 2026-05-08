@@ -7,6 +7,8 @@ import (
 	"log"
 	"net"
 	"strings"
+
+	"github.com/Siddharta314/httpfromtcp/internal/request"
 )
 
 const port = ":42069"
@@ -25,9 +27,15 @@ func main() {
 			log.Fatalf("Error accepting connection: %v", err.Error())
 		}
 		fmt.Println("Connection accepted:  ", conn.RemoteAddr())
-		for line := range getLinesChannel(conn) {
-			fmt.Println("read:", line)
+		request, err := request.RequestFromReader(conn)
+		if err != nil {
+			log.Fatalf("Error parsing request: %v", err.Error())
 		}
+		fmt.Printf("Request line:\n- Method: %s\n- Target: %s\n- Version: %s\n",
+			request.RequestLine.Method,
+			request.RequestLine.RequestTarget,
+			request.RequestLine.HttpVersion,
+		)
 		fmt.Println("Connection closed: ", conn.RemoteAddr())
 	}
 }
