@@ -34,17 +34,34 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	r := &Request{state: stateInitialized}
 	buf := make([]byte, bufferSize)
 	var leftover []byte
-
+	// readCount := 0
 	for r.state != stateDone {
+		// n, err := reader.Read(buf[readCount:])
 		n, err := reader.Read(buf)
 		if err != nil {
+			if err == io.EOF {
+				r.state = stateDone
+				break
+			}
 			return nil, err
 		}
+		// readCount += n
 		dataToParse := append(leftover, buf[:n]...)
 		consumed, err := r.parse(dataToParse)
+		// consumed, err := r.parse(buf[:readCount])
 		if err != nil {
 			return nil, err
 		}
+		// if consumed > 0 {
+		// 	copy(buf, buf[consumed:readCount])
+		// 	readCount -= consumed
+		// }
+
+		// if readCount == len(buf) && consumed == 0 {
+		// 	newBuf := make([]byte, len(buf)*2)
+		// 	copy(newBuf, buf)
+		// 	buf = newBuf
+		// }
 		leftover = dataToParse[consumed:]
 	}
 	fmt.Printf("Parsed Request: %s %s %s\n",
