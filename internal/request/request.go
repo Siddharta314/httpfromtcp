@@ -1,6 +1,7 @@
 package request
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strings"
@@ -27,28 +28,63 @@ const (
 )
 
 const crlf = "\r\n"
+const bufferSize = 8
 
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, err
+	r := &Request{state: stateInitialized}
+	buf := make([]byte, bufferSize)
+	var leftover []byte
+
+	for r.state != stateDone {
+		n, err := reader.Read(buf)
+		if err != nil {
+			return nil, err
+		}
+		dataToParse := append(leftover, buf[:n]...)
+		consumed, err := r.parse(dataToParse)
+		if err != nil {
+			return nil, err
+		}
+		leftover = dataToParse[consumed:]
 	}
-	requestLine, err := parseRequestLine(data)
-	if err != nil {
-		return nil, err
-	}
-	return &Request{
-		RequestLine: *requestLine,
-	}, nil
+	fmt.Printf("Parsed Request: %s %s %s\n",
+		r.RequestLine.Method,
+		r.RequestLine.RequestTarget,
+		r.RequestLine.HttpVersion,
+	)
+	return r, nil
 }
 
-func parseRequestLine(data []byte) (*RequestLine, error) {
-	dataStr := string(data)
-	idx := strings.Index(dataStr, crlf)
+func parseRequestLine(data []byte) (int, *RequestLine, error) {
+	idx := bytes.Index(data, []byte(crlf))
 	if idx == -1 {
-		return nil, fmt.Errorf("CRLF not found")
+		return 0, nil, nil
 	}
-	return newRequestLine(dataStr[:idx])
+	requestLine, err := newRequestLine(string(data[:idx]))
+	if err != nil {
+		return 0, nil, err
+	}
+	return idx + len(crlf), requestLine, nil
+}
+
+func (r *Request) parse(data []byte) (int, error) {
+	switch r.state {
+	case stateInitialized:
+		n, request, err := parseRequestLine(data)
+		if err != nil {
+			return 0, err
+		}
+		if n == 0 {
+			return 0, nil
+		}
+		r.RequestLine = *request
+		r.state = stateDone
+		return n, nil
+	case stateDone:
+		return 0, fmt.Errorf("error: trying to read data in a done state")
+	default:
+		return 0, fmt.Errorf("error: unknown state: %d", r.state)
+	}
 }
 
 func newRequestLine(line string) (*RequestLine, error) {
